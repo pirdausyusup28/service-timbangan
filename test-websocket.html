@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket Timbangan Realtime</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        .status.error { background: #fff3cd; color: #856404; }
+        
+        .realtime-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 1s infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .weight-display {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .weight-display.updated {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            transform: scale(1.02);
+        }
+        
+        .weight-value {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .weight-unit {
+            font-size: 1.5rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .info-card h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .info-value {
+            color: #6c757d;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-primary { background: #007bff; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        
+        .log-section {
+            padding: 20px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-title {
+            color: #3498db;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            padding: 5px;
+            background: rgba(52, 152, 219, 0.1);
+            border-radius: 3px;
+        }
+        
+        .log-timestamp {
+            color: #95a5a6;
+        }
+        
+        @media (max-width: 768px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .weight-value {
+                font-size: 3rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🏗️ Test WebSocket Timbangan</h1>
+            <p>Monitoring Data Timbangan Secara Realtime</p>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div>
+                <span id="connection-status" class="status disconnected">Menghubungkan...</span>
+                <span id="ws-status" class="status disconnected">WebSocket: Connecting...</span>
+            </div>
+            <div>
+                <span class="realtime-indicator" id="realtime-indicator" style="display: none;"></span>
+                <span id="client-count">Clients: 0</span>
+            </div>
+        </div>
+        
+        <!-- Weight Display -->
+        <div class="weight-display" id="weight-display">
+            <div class="weight-value" id="weight-value">0.00</div>
+            <div class="weight-unit" id="weight-unit">kg</div>
+        </div>
+        
+        <!-- Info Grid -->
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>📊 Data Timbangan</h3>
+                <div class="info-item">
+                    <span class="info-label">Timestamp:</span>
+                    <span class="info-value" id="timestamp">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value" id="status">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Raw Data:</span>
+                    <span class="info-value" id="raw-data">-</span>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <h3>🔌 Koneksi</h3>
+                <div class="info-item">
+                    <span class="info-label">WebSocket:</span>
+                    <span class="info-value" id="ws-connection">Disconnected</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">API Server:</span>
+                    <span class="info-value" id="api-status">Testing...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Last Update:</span>
+                    <span class="info-value" id="last-update">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <div class="button-group">
+                <button id="btn-zero" class="btn btn-warning" disabled>
+                    ⚖️ Zero/Tare
+                </button>
+                <button id="btn-request" class="btn btn-primary" disabled>
+                    📡 Request Data
+                </button>
+                <button id="btn-reconnect" class="btn btn-secondary">
+                    🔄 Reconnect WS
+                </button>
+                <button id="btn-test-api" class="btn btn-success">
+                    🧪 Test API
+                </button>
+                <button id="btn-test-weight" class="btn btn-primary">
+                    🎯 Set Test Weight
+                </button>
+            </div>
+        </div>
+        
+        <!-- Log Section -->
+        <div class="log-section">
+            <div class="log-title">📝 Connection Log</div>
+            <div id="log-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // Konfigurasi
+        const CONFIG = {
+            wsUrl: 'ws://localhost:8081',
+            apiBase: 'http://localhost:3000/api',
+            reconnectInterval: 5000,
+            maxLogEntries: 50
+        };
+        
+        // State
+        let ws = null;
+        let isConnected = false;
+        let reconnectTimer = null;
+        let updateCount = 0;
+        
+        // DOM Elements
+        const elements = {
+            weightValue: document.getElementById('weight-value'),
+            weightUnit: document.getElementById('weight-unit'),
+            weightDisplay: document.getElementById('weight-display'),
+            connectionStatus: document.getElementById('connection-status'),
+            wsStatus: document.getElementById('ws-status'),
+            wsConnection: document.getElementById('ws-connection'),
+            apiStatus: document.getElementById('api-status'),
+            timestamp: document.getElementById('timestamp'),
+            status: document.getElementById('status'),
+            rawData: document.getElementById('raw-data'),
+            lastUpdate: document.getElementById('last-update'),
+            realtimeIndicator: document.getElementById('realtime-indicator'),
+            logContainer: document.getElementById('log-container'),
+            btnZero: document.getElementById('btn-zero'),
+            btnRequest: document.getElementById('btn-request'),
+            btnReconnect: document.getElementById('btn-reconnect'),
+            btnTestApi: document.getElementById('btn-test-api')
+        };
+        
+        // Logging function
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message}`;
+            
+            elements.logContainer.insertBefore(logEntry, elements.logContainer.firstChild);
+            
+            // Limit log entries
+            while (elements.logContainer.children.length > CONFIG.maxLogEntries) {
+                elements.logContainer.removeChild(elements.logContainer.lastChild);
+            }
+        }
+        
+        // Update display function
+        function updateDisplay(data) {
+            elements.weightValue.textContent = parseFloat(data.value || 0).toFixed(2);
+            elements.weightUnit.textContent = data.unit || 'kg';
+            elements.timestamp.textContent = new Date(data.timestamp).toLocaleString('id-ID');
+            elements.status.textContent = data.status || '-';
+            elements.rawData.textContent = data.raw || '-';
+            elements.lastUpdate.textContent = new Date().toLocaleTimeString();
+            
+            // Animation
+            elements.weightDisplay.classList.add('updated');
+            setTimeout(() => elements.weightDisplay.classList.remove('updated'), 500);
+            
+            // Update connection status
+            updateConnectionStatus(data.connected);
+            
+            updateCount++;
+            addLog(`📊 Data update #${updateCount}: ${data.value} ${data.unit}`);
+        }
+        
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            
+            if (connected) {
+                elements.connectionStatus.className = 'status connected';
+                elements.connectionStatus.textContent = 'Timbangan: Terhubung';
+            } else {
+                elements.connectionStatus.className = 'status disconnected';
+                elements.connectionStatus.textContent = 'Timbangan: Terputus';
+            }
+            
+            // Enable/disable buttons
+            elements.btnZero.disabled = !connected;
+            elements.btnRequest.disabled = !connected;
+        }
+        
+        // WebSocket functions
+        function connectWebSocket() {
+            try {
+                addLog('🔌 Mencoba koneksi WebSocket...');
+                ws = new WebSocket(CONFIG.wsUrl);
+                
+                ws.onopen = function() {
+                    addLog('✅ WebSocket terhubung!');
+                    elements.wsStatus.className = 'status connected';
+                    elements.wsStatus.textContent = 'WebSocket: Connected';
+                    elements.wsConnection.textContent = 'Connected';
+                    elements.realtimeIndicator.style.display = 'inline-block';
+                    
+                    if (reconnectTimer) {
+                        clearInterval(reconnectTimer);
+                        reconnectTimer = null;
+                    }
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.type === 'weight_update') {
+                            updateDisplay(message.data);
+                        }
+                    } catch (e) {
+                        addLog('❌ Error parsing message: ' + e.message);
+                    }
+                };
+                
+                ws.onclose = function() {
+                    addLog('🔌 WebSocket terputus');
+                    elements.wsStatus.className = 'status disconnected';
+                    elements.wsStatus.textContent = 'WebSocket: Disconnected';
+                    elements.wsConnection.textContent = 'Disconnected';
+                    elements.realtimeIndicator.style.display = 'none';
+                    
+                    // Auto reconnect
+                    if (!reconnectTimer) {
+                        reconnectTimer = setInterval(() => {
+                            addLog('🔄 Mencoba reconnect...');
+                            connectWebSocket();
+                        }, CONFIG.reconnectInterval);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    addLog('❌ WebSocket error: ' + error);
+                    elements.wsStatus.className = 'status error';
+                    elements.wsStatus.textContent = 'WebSocket: Error';
+                };
+                
+            } catch (e) {
+                addLog('❌ Error creating WebSocket: ' + e.message);
+                elements.wsStatus.className = 'status error';
+                elements.wsStatus.textContent = 'WebSocket: Error';
+            }
+        }
+        
+        // API functions
+        async function testApi() {
+            try {
+                addLog('🧪 Testing API connection...');
+                const response = await fetch(CONFIG.apiBase + '/weight');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    elements.apiStatus.textContent = 'Connected';
+                    addLog('✅ API test berhasil');
+                    
+                    if (data.success) {
+                        updateDisplay(data.data);
+                    }
+                } else {
+                    elements.apiStatus.textContent = 'Error';
+                    addLog('❌ API test gagal: ' + response.status);
+                }
+            } catch (error) {
+                elements.apiStatus.textContent = 'Disconnected';
+                addLog('❌ API test error: ' + error.message);
+            }
+        }
+        
+        async function sendCommand(endpoint, commandName) {
+            if (!isConnected) {
+                addLog('⚠️ Timbangan tidak terhubung!');
+                return;
+            }
+            
+            try {
+                addLog(`📤 Mengirim perintah: ${commandName}`);
+                const response = await fetch(CONFIG.apiBase + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    addLog(`✅ ${commandName} berhasil dikirim`);
+                } else {
+                    addLog(`❌ ${commandName} gagal: ${data.message}`);
+                }
+            } catch (error) {
+                addLog(`❌ Error ${commandName}: ${error.message}`);
+            }
+        }
+        
+        // Event listeners
+        elements.btnZero.addEventListener('click', () => {
+            sendCommand('/zero', 'Zero/Tare');
+        });
+        
+        elements.btnRequest.addEventListener('click', () => {
+            sendCommand('/request', 'Request Data');
+        });
+        
+        elements.btnReconnect.addEventListener('click', () => {
+            if (ws) {
+                ws.close();
+            }
+            connectWebSocket();
+        });
+        
+        elements.btnTestApi.addEventListener('click', testApi);
+        
+        // Test weight button
+        document.getElementById('btn-test-weight').addEventListener('click', async () => {
+            const testValue = prompt('Masukkan nilai test (contoh: 25.5):', '10');
+            if (testValue !== null) {
+                try {
+                    addLog(`🎯 Setting test weight: ${testValue}`);
+                    const response = await fetch(CONFIG.apiBase + '/test-weight', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: parseFloat(testValue), unit: 'kg' })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        addLog(`✅ Test weight berhasil: ${testValue} kg`);
+                    } else {
+                        addLog(`❌ Test weight gagal: ${data.message}`);
+                    }
+                } catch (error) {
+                    addLog(`❌ Error setting test weight: ${error.message}`);
+                }
+            }
+        });
+        
+        // Initialize
+        function init() {
+            addLog('🚀 Memulai aplikasi test WebSocket...');
+            connectWebSocket();
+            testApi();
+            
+            // Test API setiap 10 detik
+            setInterval(testApi, 10000);
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (ws) ws.close();
+            if (reconnectTimer) clearInterval(reconnectTimer);
+        });
+        
+        // Start application
+        init();
+    </script>
+</body>
+</html>
