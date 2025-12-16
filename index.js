@@ -1,19 +1,169 @@
-// Install dulu: npm install serialport
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const readline = require('readline');
+const express = require('express');
+const cors = require('cors');
 
-// Konfigurasi Serial Port
+// ============================================
+// KONFIGURASI
+// ============================================
 const portName = 'COM7';
-const baudRates = [2400, 4800, 9600, 19200]; // Baudrate yang akan dicoba
+const baudRates = [2400, 4800, 9600, 19200];
+const API_PORT = 3000; // Port untuk REST API
+
+// ============================================
+// STATE MANAGEMENT
+// ============================================
 let currentBaudIndex = 0;
 let currentPort = null;
+let latestWeight = {
+  value: 0,
+  unit: 'kg',
+  raw: '',
+  timestamp: new Date().toISOString(),
+  status: 'disconnected',
+  connected: false
+};
 
 // Setup readline untuk input dari keyboard
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
+
+// ============================================
+// REST API SETUP
+// ============================================
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Endpoint untuk mendapatkan data timbangan terbaru
+app.get('/api/weight', (req, res) => {
+  res.json({
+    success: true,
+    data: latestWeight
+  });
+});
+
+// Endpoint untuk mengirim perintah ke timbangan
+app.post('/api/command', (req, res) => {
+  const { command } = req.body;
+  
+  if (!currentPort || !currentPort.isOpen) {
+    return res.status(503).json({
+      success: false,
+      message: 'Port tidak terhubung'
+    });
+  }
+
+  if (!command) {
+    return res.status(400).json({
+      success: false,
+      message: 'Command tidak boleh kosong'
+    });
+  }
+
+  sendCommand(currentPort, command + '\r\n');
+  res.json({
+    success: true,
+    message: `Perintah '${command}' terkirim`
+  });
+});
+
+// Endpoint untuk zero/tare
+app.post('/api/zero', (req, res) => {
+  if (!currentPort || !currentPort.isOpen) {
+    return res.status(503).json({
+      success: false,
+      message: 'Port tidak terhubung'
+    });
+  }
+
+  sendCommand(currentPort, 'Z\r\n');
+  res.json({
+    success: true,
+    message: 'Perintah Zero/Tare terkirim'
+  });
+});
+
+// Endpoint untuk request weight
+app.post('/api/request', (req, res) => {
+  if (!currentPort || !currentPort.isOpen) {
+    return res.status(503).json({
+      success: false,
+      message: 'Port tidak terhubung'
+    });
+  }
+
+  sendCommand(currentPort, 'P\r\n');
+  res.json({
+    success: true,
+    message: 'Request data terkirim'
+  });
+});
+
+// Endpoint untuk status koneksi
+app.get('/api/status', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      connected: latestWeight.connected,
+      status: latestWeight.status,
+      port: portName,
+      baudRate: baudRates[currentBaudIndex]
+    }
+  });
+});
+
+// Endpoint untuk list semua port
+app.get('/api/ports', async (req, res) => {
+  try {
+    const ports = await SerialPort.list();
+    res.json({
+      success: true,
+      data: ports
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Start API Server
+app.listen(API_PORT, () => {
+  console.log(`\n🌐 REST API berjalan di http://localhost:${API_PORT}`);
+  console.log(`📊 Endpoint utama:`);
+  console.log(`   GET  http://localhost:${API_PORT}/api/weight   - Ambil data timbangan`);
+  console.log(`   GET  http://localhost:${API_PORT}/api/status   - Cek status koneksi`);
+  console.log(`   POST http://localhost:${API_PORT}/api/command  - Kirim perintah custom`);
+  console.log(`   POST http://localhost:${API_PORT}/api/zero     - Zero/Tare`);
+  console.log(`   POST http://localhost:${API_PORT}/api/request  - Request data`);
+  console.log(`   GET  http://localhost:${API_PORT}/api/ports    - List semua port\n`);
+});
+
+// ============================================
+// SERIAL PORT FUNCTIONS
+// ============================================
+
+// Update state dengan data baru
+function updateWeight(value, unit, raw) {
+  latestWeight = {
+    value: parseFloat(value) || 0,
+    unit: unit || 'kg',
+    raw: raw || '',
+    timestamp: new Date().toISOString(),
+    status: 'active',
+    connected: true
+  };
+}
 
 // Fungsi untuk mencoba koneksi dengan baud rate tertentu
 function tryConnect(baudRate) {
@@ -36,6 +186,8 @@ function tryConnect(baudRate) {
   port.open((err) => {
     if (err) {
       console.error('❌ Error membuka port:', err.message);
+      latestWeight.status = 'error';
+      latestWeight.connected = false;
       
       // Coba baud rate berikutnya
       currentBaudIndex++;
@@ -47,6 +199,9 @@ function tryConnect(baudRate) {
         console.log('   1. Pastikan COM7 tidak digunakan aplikasi lain');
         console.log('   2. Cek Device Manager apakah COM7 aktif');
         console.log('   3. Pastikan kabel terhubung dengan baik');
+        
+        // Set nilai default 0 jika tidak terkoneksi
+        updateWeight(0, 'kg', 'Tidak ada koneksi');
       }
       return;
     }
@@ -63,6 +218,10 @@ function tryConnect(baudRate) {
     console.log('   Q  - Quit');
     console.log('\n💡 Ketik perintah lalu Enter, atau tunggu data otomatis');
     console.log('   (Tekan Ctrl+C untuk keluar)\n');
+
+    // Update status connected
+    latestWeight.connected = true;
+    latestWeight.status = 'connected';
 
     // Setup keyboard input
     setupKeyboardInput(port);
@@ -82,6 +241,13 @@ function tryConnect(baudRate) {
         const weight = weightMatch[1];
         const unit = weightMatch[2] || 'kg';
         console.log(`   ⚖️  Berat: ${weight} ${unit}`);
+        
+        // Update state
+        updateWeight(weight, unit, cleaned);
+      } else {
+        // Jika tidak ada match, set 0
+        console.log('   ⚠️  Format tidak dikenali, set ke 0');
+        updateWeight(0, 'kg', cleaned);
       }
       
       console.log('---');
@@ -97,12 +263,25 @@ function tryConnect(baudRate) {
     // Event error
     port.on('error', (err) => {
       console.error('❌ Error:', err.message);
+      latestWeight.status = 'error';
+      latestWeight.connected = false;
+      updateWeight(0, 'kg', 'Error: ' + err.message);
     });
 
     // Event port tertutup
     port.on('close', () => {
       console.log('🔌 Port tertutup');
+      latestWeight.status = 'disconnected';
+      latestWeight.connected = false;
+      updateWeight(0, 'kg', 'Port tertutup');
     });
+
+    // Request data setiap 2 detik (opsional, bisa diaktifkan)
+    // setInterval(() => {
+    //   if (port.isOpen) {
+    //     sendCommand(port, 'P\r\n');
+    //   }
+    // }, 2000);
   });
 }
 
@@ -200,16 +379,19 @@ function testCommands(port) {
   sendNext();
 }
 
-  // Handle Ctrl+C untuk menutup port dengan benar
-  process.on('SIGINT', () => {
-    console.log('\n\n⏹️  Menutup koneksi...');
-    rl.close();
-    port.close(() => {
+// Handle Ctrl+C untuk menutup port dengan benar
+process.on('SIGINT', () => {
+  console.log('\n\n⏹️  Menutup koneksi...');
+  rl.close();
+  if (currentPort) {
+    currentPort.close(() => {
       console.log('✅ Port ditutup. Bye!');
       process.exit(0);
     });
-  });
-}
+  } else {
+    process.exit(0);
+  }
+});
 
 // Fungsi untuk list semua port yang tersedia
 async function listPorts() {
@@ -238,6 +420,9 @@ async function main() {
   
   // List port yang tersedia
   await listPorts();
+  
+  // Set nilai default 0 saat startup
+  updateWeight(0, 'kg', 'Menunggu koneksi...');
   
   // Mulai mencoba koneksi
   tryConnect(baudRates[currentBaudIndex]);
