@@ -36,7 +36,10 @@ const rl = readline.createInterface({
 // ============================================
 // WEBSOCKET SETUP
 // ============================================
-const wss = new WebSocket.Server({ port: WS_PORT });
+const wss = new WebSocket.Server({ 
+  port: WS_PORT,
+  host: '0.0.0.0' // Bind ke semua interface untuk akses dari PC lain
+});
 const wsClients = new Set();
 
 console.log(`🔌 WebSocket server berjalan di ws://localhost:${WS_PORT}`);
@@ -222,8 +225,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Start API Server
-app.listen(API_PORT, () => {
+// Start API Server - bind ke semua interface untuk akses dari PC lain
+app.listen(API_PORT, '0.0.0.0', () => {
   console.log(`\n🌐 REST API berjalan di http://localhost:${API_PORT}`);
   console.log(`�  WebSocket server berjalan di ws://localhost:${WS_PORT}`);
   console.log(`📊 Endpoint utama:`);

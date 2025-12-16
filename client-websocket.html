@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client WebSocket Timbangan - Remote Access</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .config-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .input-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+        
+        .input-group input {
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-secondary { background: #6c757d; color: white; }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        .status.error { background: #fff3cd; color: #856404; }
+        
+        .weight-display {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .weight-display.updated {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            transform: scale(1.02);
+        }
+        
+        .weight-value {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .weight-unit {
+            font-size: 1.5rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .log-section {
+            padding: 20px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+            padding: 5px;
+            background: rgba(52, 152, 219, 0.1);
+            border-radius: 3px;
+        }
+        
+        .realtime-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 1s infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .alert {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .alert-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🌐 Client WebSocket Timbangan</h1>
+            <p>Akses Remote ke Server Timbangan</p>
+        </div>
+        
+        <!-- Configuration Section -->
+        <div class="config-section">
+            <h3 style="margin-bottom: 15px;">⚙️ Konfigurasi Server</h3>
+            <div class="config-grid">
+                <div class="input-group">
+                    <label for="server-ip">IP Address Server:</label>
+                    <input type="text" id="server-ip" placeholder="192.168.1.100" value="localhost">
+                </div>
+                <div class="input-group">
+                    <label for="server-port">Port:</label>
+                    <input type="number" id="server-port" placeholder="3000" value="3000">
+                </div>
+                <button id="btn-connect" class="btn btn-primary">🔌 Connect</button>
+            </div>
+            
+            <div class="alert alert-info" style="margin-top: 15px;">
+                <strong>💡 Petunjuk:</strong> 
+                Masukkan IP Address PC Server (PC A) yang menjalankan service timbangan. 
+                Contoh: 192.168.1.100, 10.0.0.5, atau localhost untuk testing lokal.
+            </div>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div>
+                <span id="connection-status" class="status disconnected">Belum Terhubung</span>
+                <span id="ws-status" class="status disconnected">WebSocket: Disconnected</span>
+            </div>
+            <div>
+                <span class="realtime-indicator" id="realtime-indicator" style="display: none;"></span>
+                <span id="server-info">Server: -</span>
+            </div>
+        </div>
+        
+        <!-- Weight Display -->
+        <div class="weight-display" id="weight-display">
+            <div class="weight-value" id="weight-value">-.--</div>
+            <div class="weight-unit" id="weight-unit">kg</div>
+        </div>
+        
+        <!-- Info Grid -->
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>📊 Data Timbangan</h3>
+                <div class="info-item">
+                    <span>Timestamp:</span>
+                    <span id="timestamp">-</span>
+                </div>
+                <div class="info-item">
+                    <span>Status:</span>
+                    <span id="status">-</span>
+                </div>
+                <div class="info-item">
+                    <span>Raw Data:</span>
+                    <span id="raw-data">-</span>
+                </div>
+            </div>
+            
+            <div class="info-card">
+                <h3>🔌 Koneksi Remote</h3>
+                <div class="info-item">
+                    <span>Server IP:</span>
+                    <span id="current-server">-</span>
+                </div>
+                <div class="info-item">
+                    <span>WebSocket:</span>
+                    <span id="ws-connection">Disconnected</span>
+                </div>
+                <div class="info-item">
+                    <span>Last Update:</span>
+                    <span id="last-update">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <div class="button-group">
+                <button id="btn-zero" class="btn btn-warning" disabled>
+                    ⚖️ Zero/Tare
+                </button>
+                <button id="btn-request" class="btn btn-primary" disabled>
+                    📡 Request Data
+                </button>
+                <button id="btn-test-weight" class="btn btn-success" disabled>
+                    🎯 Set Test Weight
+                </button>
+                <button id="btn-disconnect" class="btn btn-secondary" disabled>
+                    🔌 Disconnect
+                </button>
+            </div>
+        </div>
+        
+        <!-- Log Section -->
+        <div class="log-section">
+            <div style="color: #3498db; margin-bottom: 10px; font-weight: bold;">📝 Connection Log</div>
+            <div id="log-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let ws = null;
+        let isConnected = false;
+        let reconnectTimer = null;
+        let currentConfig = { ip: 'localhost', port: '3000' };
+        
+        // DOM Elements
+        const elements = {
+            serverIp: document.getElementById('server-ip'),
+            serverPort: document.getElementById('server-port'),
+            btnConnect: document.getElementById('btn-connect'),
+            btnDisconnect: document.getElementById('btn-disconnect'),
+            weightValue: document.getElementById('weight-value'),
+            weightUnit: document.getElementById('weight-unit'),
+            weightDisplay: document.getElementById('weight-display'),
+            connectionStatus: document.getElementById('connection-status'),
+            wsStatus: document.getElementById('ws-status'),
+            wsConnection: document.getElementById('ws-connection'),
+            timestamp: document.getElementById('timestamp'),
+            status: document.getElementById('status'),
+            rawData: document.getElementById('raw-data'),
+            lastUpdate: document.getElementById('last-update'),
+            currentServer: document.getElementById('current-server'),
+            serverInfo: document.getElementById('server-info'),
+            realtimeIndicator: document.getElementById('realtime-indicator'),
+            logContainer: document.getElementById('log-container'),
+            btnZero: document.getElementById('btn-zero'),
+            btnRequest: document.getElementById('btn-request'),
+            btnTestWeight: document.getElementById('btn-test-weight')
+        };
+        
+        // Logging function
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span style="color: #95a5a6;">[${timestamp}]</span> ${message}`;
+            
+            elements.logContainer.insertBefore(logEntry, elements.logContainer.firstChild);
+            
+            // Limit log entries
+            while (elements.logContainer.children.length > 30) {
+                elements.logContainer.removeChild(elements.logContainer.lastChild);
+            }
+        }
+        
+        // Update display function
+        function updateDisplay(data) {
+            elements.weightValue.textContent = parseFloat(data.value || 0).toFixed(2);
+            elements.weightUnit.textContent = data.unit || 'kg';
+            elements.timestamp.textContent = new Date(data.timestamp).toLocaleString('id-ID');
+            elements.status.textContent = data.status || '-';
+            elements.rawData.textContent = data.raw || '-';
+            elements.lastUpdate.textContent = new Date().toLocaleTimeString();
+            
+            // Animation
+            elements.weightDisplay.classList.add('updated');
+            setTimeout(() => elements.weightDisplay.classList.remove('updated'), 500);
+            
+            // Update connection status
+            updateConnectionStatus(data.connected);
+        }
+        
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            
+            if (connected) {
+                elements.connectionStatus.className = 'status connected';
+                elements.connectionStatus.textContent = 'Timbangan: Terhubung';
+            } else {
+                elements.connectionStatus.className = 'status disconnected';
+                elements.connectionStatus.textContent = 'Timbangan: Terputus';
+            }
+            
+            // Enable/disable buttons
+            elements.btnZero.disabled = !connected;
+            elements.btnRequest.disabled = !connected;
+            elements.btnTestWeight.disabled = !connected;
+        }
+        
+        // WebSocket functions
+        function connectWebSocket() {
+            const wsUrl = `ws://${currentConfig.ip}:8081`;
+            
+            try {
+                addLog(`🔌 Connecting to WebSocket: ${wsUrl}`);
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    addLog('✅ WebSocket connected!');
+                    elements.wsStatus.className = 'status connected';
+                    elements.wsStatus.textContent = 'WebSocket: Connected';
+                    elements.wsConnection.textContent = 'Connected';
+                    elements.realtimeIndicator.style.display = 'inline-block';
+                    
+                    if (reconnectTimer) {
+                        clearInterval(reconnectTimer);
+                        reconnectTimer = null;
+                    }
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const message = JSON.parse(event.data);
+                        if (message.type === 'weight_update') {
+                            updateDisplay(message.data);
+                            addLog(`📊 Data received: ${message.data.value} ${message.data.unit}`);
+                        }
+                    } catch (e) {
+                        addLog('❌ Error parsing message: ' + e.message);
+                    }
+                };
+                
+                ws.onclose = function() {
+                    addLog('🔌 WebSocket disconnected');
+                    elements.wsStatus.className = 'status disconnected';
+                    elements.wsStatus.textContent = 'WebSocket: Disconnected';
+                    elements.wsConnection.textContent = 'Disconnected';
+                    elements.realtimeIndicator.style.display = 'none';
+                };
+                
+                ws.onerror = function(error) {
+                    addLog('❌ WebSocket error');
+                    elements.wsStatus.className = 'status error';
+                    elements.wsStatus.textContent = 'WebSocket: Error';
+                };
+                
+            } catch (e) {
+                addLog('❌ Error creating WebSocket: ' + e.message);
+            }
+        }
+        
+        // API functions
+        async function sendCommand(endpoint, commandName) {
+            if (!isConnected) {
+                addLog('⚠️ Timbangan tidak terhubung!');
+                return;
+            }
+            
+            try {
+                const apiUrl = `http://${currentConfig.ip}:${currentConfig.port}/api${endpoint}`;
+                addLog(`📤 Sending command: ${commandName} to ${apiUrl}`);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    addLog(`✅ ${commandName} berhasil dikirim`);
+                } else {
+                    addLog(`❌ ${commandName} gagal: ${data.message}`);
+                }
+            } catch (error) {
+                addLog(`❌ Error ${commandName}: ${error.message}`);
+            }
+        }
+        
+        // Connect function
+        function connect() {
+            const ip = elements.serverIp.value.trim();
+            const port = elements.serverPort.value.trim();
+            
+            if (!ip || !port) {
+                addLog('❌ IP Address dan Port harus diisi!');
+                return;
+            }
+            
+            currentConfig = { ip, port };
+            
+            elements.currentServer.textContent = `${ip}:${port}`;
+            elements.serverInfo.textContent = `Server: ${ip}:${port}`;
+            
+            addLog(`🚀 Connecting to server: ${ip}:${port}`);
+            
+            // Enable/disable buttons
+            elements.btnConnect.disabled = true;
+            elements.btnDisconnect.disabled = false;
+            elements.serverIp.disabled = true;
+            elements.serverPort.disabled = true;
+            
+            // Connect WebSocket
+            connectWebSocket();
+            
+            // Test API connection
+            testApiConnection();
+        }
+        
+        // Disconnect function
+        function disconnect() {
+            addLog('🔌 Disconnecting...');
+            
+            if (ws) {
+                ws.close();
+            }
+            
+            if (reconnectTimer) {
+                clearInterval(reconnectTimer);
+                reconnectTimer = null;
+            }
+            
+            // Reset UI
+            elements.btnConnect.disabled = false;
+            elements.btnDisconnect.disabled = true;
+            elements.serverIp.disabled = false;
+            elements.serverPort.disabled = false;
+            
+            elements.connectionStatus.className = 'status disconnected';
+            elements.connectionStatus.textContent = 'Belum Terhubung';
+            elements.wsStatus.className = 'status disconnected';
+            elements.wsStatus.textContent = 'WebSocket: Disconnected';
+            
+            updateConnectionStatus(false);
+        }
+        
+        // Test API connection
+        async function testApiConnection() {
+            try {
+                const apiUrl = `http://${currentConfig.ip}:${currentConfig.port}/api/weight`;
+                const response = await fetch(apiUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addLog('✅ API connection successful');
+                    
+                    if (data.success) {
+                        updateDisplay(data.data);
+                    }
+                } else {
+                    addLog('❌ API connection failed: ' + response.status);
+                }
+            } catch (error) {
+                addLog('❌ API connection error: ' + error.message);
+            }
+        }
+        
+        // Event listeners
+        elements.btnConnect.addEventListener('click', connect);
+        elements.btnDisconnect.addEventListener('click', disconnect);
+        
+        elements.btnZero.addEventListener('click', () => {
+            sendCommand('/zero', 'Zero/Tare');
+        });
+        
+        elements.btnRequest.addEventListener('click', () => {
+            sendCommand('/request', 'Request Data');
+        });
+        
+        elements.btnTestWeight.addEventListener('click', async () => {
+            const testValue = prompt('Masukkan nilai test (contoh: 25.5):', '15');
+            if (testValue !== null) {
+                try {
+                    const apiUrl = `http://${currentConfig.ip}:${currentConfig.port}/api/test-weight`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: parseFloat(testValue), unit: 'kg' })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        addLog(`✅ Test weight set: ${testValue} kg`);
+                    } else {
+                        addLog(`❌ Test weight failed: ${data.message}`);
+                    }
+                } catch (error) {
+                    addLog(`❌ Error setting test weight: ${error.message}`);
+                }
+            }
+        });
+        
+        // Enter key support
+        elements.serverIp.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+        
+        elements.serverPort.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+        
+        // Initialize
+        addLog('🚀 Client WebSocket Timbangan ready');
+        addLog('💡 Masukkan IP Address server dan klik Connect');
+    </script>
+</body>
+</html>
