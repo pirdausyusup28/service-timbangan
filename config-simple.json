@@ -1,0 +1,13 @@
+{
+  "timbangan_id": 1,
+  "port_name": "COM7",
+  "api_port": 3001,
+  "ws_port": 8081,
+  "enable_http_push": false,
+  "enable_ftp_push": false,
+  "http_config": {
+    "baseUrl": "https://yourdomain.com",
+    "apiKey": "your-secret-key",
+    "endpoint": "/api/timbangan/update"
+  }
+}

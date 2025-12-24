@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timbangan Online - Hostinger</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .main-display {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .weight-value {
+            font-size: 5em;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0;
+        }
+        
+        .weight-unit {
+            font-size: 2em;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .status-online {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #f44336;
+            color: white;
+        }
+        
+        .status-warning {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .info-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .info-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 30px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .weight-value {
+                font-size: 3em;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-display {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🏗️ Timbangan Online</h1>
+            <p>Data Realtime dari Service Node.js</p>
+        </div>
+        
+        <!-- Alert -->
+        <div id="alert" class="alert">
+            <strong>⚠️ Peringatan:</strong> <span id="alert-message"></span>
+        </div>
+        
+        <!-- Main Display -->
+        <div class="main-display">
+            <div class="weight-value" id="weight-value">
+                <span class="loading"></span>
+            </div>
+            <div class="weight-unit" id="weight-unit">Memuat...</div>
+            <div class="status-badge" id="status-badge">
+                Menghubungkan...
+            </div>
+        </div>
+        
+        <!-- Info Grid -->
+        <div class="info-grid">
+            <!-- Status Card -->
+            <div class="info-card">
+                <h3>📊 Status Sistem</h3>
+                <div class="info-item">
+                    <span class="info-label">Koneksi Timbangan</span>
+                    <span class="info-value" id="connection-status">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Status Data</span>
+                    <span class="info-value" id="data-status">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Terakhir Update</span>
+                    <span class="info-value" id="last-update">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Umur Data</span>
+                    <span class="info-value" id="data-age">-</span>
+                </div>
+            </div>
+            
+            <!-- Technical Info -->
+            <div class="info-card">
+                <h3>🔧 Info Teknis</h3>
+                <div class="info-item">
+                    <span class="info-label">Server</span>
+                    <span class="info-value" id="server-info">Hostinger</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">API Endpoint</span>
+                    <span class="info-value" id="api-endpoint">/api/timbangan/current</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Refresh Rate</span>
+                    <span class="info-value" id="refresh-rate">3 detik</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Data Raw</span>
+                    <span class="info-value" id="raw-data">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chart Container (untuk future enhancement) -->
+        <div class="chart-container">
+            <h3>📈 Grafik Berat (Coming Soon)</h3>
+            <p style="text-align: center; color: #666; padding: 40px;">
+                Grafik realtime akan ditampilkan di sini
+            </p>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>🔄 Auto refresh setiap 3 detik | Terakhir refresh: <span id="last-refresh">-</span></p>
+            <p>Powered by Node.js + Laravel + Hostinger</p>
+        </div>
+    </div>
+
+    <script>
+        // Konfigurasi
+        const API_ENDPOINT = '/api/timbangan/current'; // Sesuaikan dengan route Laravel
+        const REFRESH_INTERVAL = 3000; // 3 detik
+        const MAX_DATA_AGE = 60; // 60 detik
+        
+        let isOnline = false;
+        let lastDataTime = null;
+        
+        // Fungsi untuk format waktu
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            return new Date(timestamp).toLocaleTimeString('id-ID');
+        }
+        
+        // Fungsi untuk format durasi
+        function formatDuration(seconds) {
+            if (seconds < 60) return `${seconds} detik`;
+            if (seconds < 3600) return `${Math.floor(seconds/60)} menit`;
+            return `${Math.floor(seconds/3600)} jam`;
+        }
+        
+        // Fungsi untuk update display
+        function updateDisplay(data) {
+            try {
+                const weight = data.data;
+                const isFresh = data.is_fresh;
+                const ageSeconds = data.age_seconds || 0;
+                
+                // Update nilai berat
+                document.getElementById('weight-value').textContent = 
+                    parseFloat(weight.value || 0).toFixed(2);
+                document.getElementById('weight-unit').textContent = weight.unit || 'kg';
+                
+                // Update status badge
+                const statusBadge = document.getElementById('status-badge');
+                if (weight.connected && isFresh) {
+                    statusBadge.textContent = '🟢 Online';
+                    statusBadge.className = 'status-badge status-online';
+                } else if (weight.connected && !isFresh) {
+                    statusBadge.textContent = '🟡 Data Lama';
+                    statusBadge.className = 'status-badge status-warning';
+                } else {
+                    statusBadge.textContent = '🔴 Offline';
+                    statusBadge.className = 'status-badge status-offline';
+                }
+                
+                // Update info
+                document.getElementById('connection-status').textContent = 
+                    weight.connected ? 'Terhubung' : 'Terputus';
+                document.getElementById('data-status').textContent = weight.status || 'unknown';
+                document.getElementById('last-update').textContent = formatTime(weight.timestamp);
+                document.getElementById('data-age').textContent = formatDuration(ageSeconds);
+                document.getElementById('raw-data').textContent = 
+                    (weight.raw || '').substring(0, 20) + '...';
+                
+                // Update alert
+                updateAlert(weight, isFresh, ageSeconds);
+                
+                isOnline = true;
+                lastDataTime = new Date();
+                
+            } catch (error) {
+                console.error('Error updating display:', error);
+                showError('Error parsing data');
+            }
+        }
+        
+        // Fungsi untuk update alert
+        function updateAlert(weight, isFresh, ageSeconds) {
+            const alert = document.getElementById('alert');
+            const alertMessage = document.getElementById('alert-message');
+            
+            if (!weight.connected) {
+                alertMessage.textContent = 'Timbangan tidak terhubung ke service Node.js';
+                alert.classList.add('show');
+            } else if (!isFresh || ageSeconds > MAX_DATA_AGE) {
+                alertMessage.textContent = `Data tidak fresh (${formatDuration(ageSeconds)}). Periksa koneksi.`;
+                alert.classList.add('show');
+            } else {
+                alert.classList.remove('show');
+            }
+        }
+        
+        // Fungsi untuk show error
+        function showError(message) {
+            document.getElementById('weight-value').textContent = 'Error';
+            document.getElementById('weight-unit').textContent = message;
+            document.getElementById('status-badge').textContent = '❌ Error';
+            document.getElementById('status-badge').className = 'status-badge status-offline';
+            
+            const alertMessage = document.getElementById('alert-message');
+            alertMessage.textContent = `Gagal mengambil data: ${message}`;
+            document.getElementById('alert').classList.add('show');
+            
+            isOnline = false;
+        }
+        
+        // Fungsi untuk load data dari API
+        async function loadData() {
+            try {
+                const response = await fetch(API_ENDPOINT);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateDisplay(data);
+                } else {
+                    throw new Error(data.message || 'API returned error');
+                }
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showError(error.message);
+            }
+        }
+        
+        // Auto refresh
+        setInterval(loadData, REFRESH_INTERVAL);
+        
+        // Update timestamp refresh
+        setInterval(() => {
+            document.getElementById('last-refresh').textContent = formatTime(new Date());
+        }, 1000);
+        
+        // Load pertama kali
+        loadData();
+        
+        // Update refresh rate display
+        document.getElementById('refresh-rate').textContent = `${REFRESH_INTERVAL/1000} detik`;
+        
+        console.log('🏗️ Timbangan Online Dashboard loaded');
+        console.log(`📡 API Endpoint: ${API_ENDPOINT}`);
+        console.log(`🔄 Refresh Interval: ${REFRESH_INTERVAL}ms`);
+    </script>
+</body>
+</html>

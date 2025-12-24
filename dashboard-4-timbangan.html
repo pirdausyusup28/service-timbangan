@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard 4 Timbangan</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .timbangan { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .weight { font-size: 3em; font-weight: bold; text-align: center; margin: 20px 0; }
+        .status { padding: 10px; border-radius: 5px; text-align: center; margin: 10px 0; }
+        .online { background: #4CAF50; color: white; }
+        .offline { background: #f44336; color: white; }
+        .info { display: flex; justify-content: space-between; margin: 5px 0; }
+        h1 { text-align: center; color: #333; }
+        h2 { color: #666; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ Dashboard 4 Timbangan</h1>
+        
+        <div class="grid">
+            <div class="timbangan">
+                <h2>Timbangan 1 (COM7)</h2>
+                <div class="weight" id="weight1">0.00 kg</div>
+                <div class="status offline" id="status1">Offline</div>
+                <div class="info"><span>Port:</span><span>3001</span></div>
+                <div class="info"><span>WebSocket:</span><span>8081</span></div>
+                <div class="info"><span>Update:</span><span id="time1">-</span></div>
+            </div>
+            
+            <div class="timbangan">
+                <h2>Timbangan 2 (COM8)</h2>
+                <div class="weight" id="weight2">0.00 kg</div>
+                <div class="status offline" id="status2">Offline</div>
+                <div class="info"><span>Port:</span><span>3002</span></div>
+                <div class="info"><span>WebSocket:</span><span>8082</span></div>
+                <div class="info"><span>Update:</span><span id="time2">-</span></div>
+            </div>
+            
+            <div class="timbangan">
+                <h2>Timbangan 3 (COM9)</h2>
+                <div class="weight" id="weight3">0.00 kg</div>
+                <div class="status offline" id="status3">Offline</div>
+                <div class="info"><span>Port:</span><span>3003</span></div>
+                <div class="info"><span>WebSocket:</span><span>8083</span></div>
+                <div class="info"><span>Update:</span><span id="time3">-</span></div>
+            </div>
+            
+            <div class="timbangan">
+                <h2>Timbangan 4 (COM10)</h2>
+                <div class="weight" id="weight4">0.00 kg</div>
+                <div class="status offline" id="status4">Offline</div>
+                <div class="info"><span>Port:</span><span>3004</span></div>
+                <div class="info"><span>WebSocket:</span><span>8084</span></div>
+                <div class="info"><span>Update:</span><span id="time4">-</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update data setiap timbangan
+        async function updateTimbangan(id) {
+            try {
+                const response = await fetch(`http://localhost:${3000 + id}/api/weight`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const weight = data.data;
+                    document.getElementById(`weight${id}`).textContent = 
+                        `${parseFloat(weight.value).toFixed(2)} ${weight.unit}`;
+                    
+                    const statusEl = document.getElementById(`status${id}`);
+                    if (weight.connected) {
+                        statusEl.textContent = 'Online';
+                        statusEl.className = 'status online';
+                    } else {
+                        statusEl.textContent = 'Offline';
+                        statusEl.className = 'status offline';
+                    }
+                    
+                    document.getElementById(`time${id}`).textContent = 
+                        new Date(weight.timestamp).toLocaleTimeString();
+                }
+            } catch (error) {
+                document.getElementById(`status${id}`).textContent = 'Error';
+                document.getElementById(`status${id}`).className = 'status offline';
+            }
+        }
+        
+        // Update semua timbangan setiap 2 detik
+        setInterval(() => {
+            for (let i = 1; i <= 4; i++) {
+                updateTimbangan(i);
+            }
+        }, 2000);
+        
+        // Load pertama kali
+        for (let i = 1; i <= 4; i++) {
+            updateTimbangan(i);
+        }
+    </script>
+</body>
+</html>

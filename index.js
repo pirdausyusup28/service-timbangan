@@ -4,14 +4,66 @@ const readline = require('readline');
 const express = require('express');
 const cors = require('cors');
 const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
+const HttpPusher = require('./HttpPusher');
+const FtpPusher = require('./FtpPusher');
 
 // ============================================
 // KONFIGURASI
 // ============================================
+const TIMBANGAN_ID = 1; // ID Timbangan (1, 2, 3, atau 4)
 const portName = 'COM7';
 const baudRates = [2400, 4800, 9600, 19200];
-const API_PORT = 3000; // Port untuk REST API
-const WS_PORT = 8081; // Port untuk WebSocket
+const API_PORT = 3000 + TIMBANGAN_ID; // Port unik per timbangan (3001, 3002, 3003, 3004)
+const WS_PORT = 8080 + TIMBANGAN_ID; // WebSocket port unik (8081, 8082, 8083, 8084)
+
+// Konfigurasi file output untuk Laravel
+const OUTPUT_DIR = path.join(__dirname, 'data');
+const WEIGHT_JSON_FILE = path.join(OUTPUT_DIR, `weight_data_${TIMBANGAN_ID}.json`);
+const WEIGHT_TXT_FILE = path.join(OUTPUT_DIR, `weight_data_${TIMBANGAN_ID}.txt`);
+const WEIGHT_LOG_FILE = path.join(OUTPUT_DIR, `weight_log_${TIMBANGAN_ID}.txt`);
+
+// ============================================
+// KONFIGURASI ONLINE PUSH
+// ============================================
+
+// Konfigurasi HTTP Push ke server online
+const HTTP_CONFIG = {
+  baseUrl: 'https://yourdomain.com', // Ganti dengan domain Hostinger Anda
+  apiKey: 'your-secret-api-key',     // Ganti dengan API key Anda
+  endpoint: '/api/timbangan/update',
+  timeout: 10000,
+  retryAttempts: 3,
+  retryDelay: 3000
+};
+
+// Konfigurasi FTP Push ke Hostinger
+const FTP_CONFIG = {
+  host: 'ftp.yourdomain.com',        // Ganti dengan FTP host Hostinger
+  user: 'your-ftp-username',         // Username FTP Hostinger
+  password: 'your-ftp-password',     // Password FTP Hostinger
+  secure: false,                     // true jika pakai FTPS
+  remotePath: `/public_html/storage/timbangan/timbangan_${TIMBANGAN_ID}/`,
+  localPath: './data/',
+  uploadInterval: 5000               // Upload setiap 5 detik
+};
+
+// Aktifkan/nonaktifkan pusher
+const ENABLE_HTTP_PUSH = true;  // Set false untuk disable HTTP push
+const ENABLE_FTP_PUSH = false;   // Set true untuk enable FTP push
+
+// Inisialisasi pushers
+let httpPusher = null;
+let ftpPusher = null;
+
+if (ENABLE_HTTP_PUSH) {
+  httpPusher = new HttpPusher(HTTP_CONFIG);
+}
+
+if (ENABLE_FTP_PUSH) {
+  ftpPusher = new FtpPusher(FTP_CONFIG);
+}
 
 // ============================================
 // STATE MANAGEMENT
@@ -19,7 +71,8 @@ const WS_PORT = 8081; // Port untuk WebSocket
 let currentBaudIndex = 0;
 let currentPort = null;
 let latestWeight = {
-  value: 10, // Ubah default ke 10
+  timbangan_id: TIMBANGAN_ID,
+  value: 0,
   unit: 'kg',
   raw: 'Nilai default startup',
   timestamp: new Date().toISOString(),
@@ -87,6 +140,7 @@ function broadcastWeight(weightData) {
 // Fungsi untuk update manual (untuk testing)
 function setTestWeight(value, unit = 'kg', raw = 'Manual test') {
   latestWeight = {
+    timbangan_id: TIMBANGAN_ID,
     value: parseFloat(value) || 0,
     unit: unit,
     raw: raw,
@@ -95,7 +149,7 @@ function setTestWeight(value, unit = 'kg', raw = 'Manual test') {
     connected: true
   };
   
-  console.log(`🧪 Test weight set to: ${value} ${unit}`);
+  console.log(`🧪 Test weight set to: ${value} ${unit} (Timbangan ${TIMBANGAN_ID})`);
   broadcastWeight(latestWeight);
 }
 
@@ -173,13 +227,20 @@ app.post('/api/request', (req, res) => {
 
 // Endpoint untuk status koneksi
 app.get('/api/status', (req, res) => {
+  const httpStatus = httpPusher ? httpPusher.getStatus() : null;
+  const ftpStatus = ftpPusher ? ftpPusher.getStatus() : null;
+  
   res.json({
     success: true,
     data: {
       connected: latestWeight.connected,
       status: latestWeight.status,
       port: portName,
-      baudRate: baudRates[currentBaudIndex]
+      baudRate: baudRates[currentBaudIndex],
+      online_push: {
+        http: httpStatus,
+        ftp: ftpStatus
+      }
     }
   });
 });
@@ -244,16 +305,55 @@ app.listen(API_PORT, '0.0.0.0', () => {
 // SERIAL PORT FUNCTIONS
 // ============================================
 
+// Pastikan direktori output ada
+function ensureOutputDirectory() {
+  if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    console.log(`📁 Direktori ${OUTPUT_DIR} dibuat`);
+  }
+}
+
+// Fungsi untuk menyimpan data ke file
+function saveWeightToFiles(weightData) {
+  try {
+    // Simpan ke file JSON (untuk Laravel baca sebagai JSON)
+    fs.writeFileSync(WEIGHT_JSON_FILE, JSON.stringify(weightData, null, 2));
+    
+    // Simpan ke file TXT (format sederhana untuk Laravel)
+    const txtContent = `${weightData.value}|${weightData.unit}|${weightData.timestamp}|${weightData.status}|${weightData.connected}`;
+    fs.writeFileSync(WEIGHT_TXT_FILE, txtContent);
+    
+    // Append ke log file (history)
+    const logEntry = `${weightData.timestamp} - ${weightData.value} ${weightData.unit} - Status: ${weightData.status} - Raw: ${weightData.raw}\n`;
+    fs.appendFileSync(WEIGHT_LOG_FILE, logEntry);
+    
+    console.log(`💾 Data disimpan: ${weightData.value} ${weightData.unit}`);
+  } catch (error) {
+    console.error('❌ Error menyimpan file:', error.message);
+  }
+}
+
 // Update state dengan data baru
 function updateWeight(value, unit, raw) {
   latestWeight = {
-    value: parseFloat(value) || 10,
+    timbangan_id: TIMBANGAN_ID,
+    value: parseFloat(value) || 0,
     unit: unit || 'kg',
     raw: raw || '',
     timestamp: new Date().toISOString(),
     status: 'active',
     connected: true
   };
+  
+  // Simpan ke file untuk Laravel
+  saveWeightToFiles(latestWeight);
+  
+  // Push ke server online (HTTP)
+  if (ENABLE_HTTP_PUSH && httpPusher) {
+    httpPusher.pushWeight(latestWeight).catch(err => {
+      console.error('HTTP Push error:', err.message);
+    });
+  }
   
   // Broadcast ke semua WebSocket clients
   broadcastWeight(latestWeight);
@@ -513,11 +613,52 @@ async function listPorts() {
 
 // Main Program
 async function main() {
-  console.log('🏗️  Serial Port Reader untuk Timbangan Armada X0168');
+  console.log(`🏗️  Serial Port Reader untuk Timbangan ${TIMBANGAN_ID} - Armada X0168`);
   console.log('================================================\n');
+  
+  // Pastikan direktori output ada
+  ensureOutputDirectory();
   
   // List port yang tersedia
   await listPorts();
+  
+  console.log(`📁 File output untuk Laravel (Timbangan ${TIMBANGAN_ID}):`);
+  console.log(`   JSON: ${WEIGHT_JSON_FILE}`);
+  console.log(`   TXT:  ${WEIGHT_TXT_FILE}`);
+  console.log(`   LOG:  ${WEIGHT_LOG_FILE}\n`);
+  
+  // Setup online push
+  console.log('🌐 Konfigurasi Online Push:');
+  
+  if (ENABLE_HTTP_PUSH && httpPusher) {
+    console.log(`   HTTP Push: ENABLED`);
+    console.log(`   Target: ${HTTP_CONFIG.baseUrl}`);
+    
+    // Test koneksi HTTP
+    setTimeout(async () => {
+      await httpPusher.testConnection();
+    }, 3000);
+  } else {
+    console.log(`   HTTP Push: DISABLED`);
+  }
+  
+  if (ENABLE_FTP_PUSH && ftpPusher) {
+    console.log(`   FTP Push: ENABLED`);
+    console.log(`   Target: ${FTP_CONFIG.host}`);
+    
+    // Koneksi dan start auto upload FTP
+    setTimeout(async () => {
+      const connected = await ftpPusher.connect();
+      if (connected) {
+        ftpPusher.startAutoUpload();
+      }
+    }, 5000);
+  } else {
+    console.log(`   FTP Push: DISABLED`);
+  }
+  
+  console.log('');
+  console.log(`🔌 Port: ${API_PORT} | WebSocket: ${WS_PORT} | COM: ${portName}\n`);
   
   // Set nilai default 0 saat startup
   updateWeight(0, 'kg', 'Menunggu koneksi...');

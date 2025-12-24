@@ -1,0 +1,25 @@
+{
+  "timbangan_id": 1,
+  "port_name": "COM7",
+  "api_port": 3001,
+  "ws_port": 8081,
+  "baud_rates": [2400, 4800, 9600, 19200],
+  "enable_http_push": true,
+  "enable_ftp_push": false,
+  "http_config": {
+    "baseUrl": "https://yourdomain.com",
+    "apiKey": "your-secret-api-key-123",
+    "endpoint": "/api/timbangan/update",
+    "timeout": 10000,
+    "retryAttempts": 3,
+    "retryDelay": 3000
+  },
+  "ftp_config": {
+    "host": "ftp.yourdomain.com",
+    "user": "your-ftp-username",
+    "password": "your-ftp-password",
+    "secure": false,
+    "remotePath": "/public_html/storage/timbangan/",
+    "uploadInterval": 5000
+  }
+}

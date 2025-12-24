@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard 4 Timbangan - Multi Scale Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .timbangan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .timbangan-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        
+        .timbangan-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .weight-display {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 15px 0;
+            color: #333;
+        }
+        
+        .weight-unit {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .status-online { background: #4CAF50; color: white; }
+        .status-offline { background: #f44336; color: white; }
+        .status-warning { background: #ff9800; color: white; }
+        
+        .timbangan-info {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .summary-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .summary-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 30px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .timbangan-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .weight-display {
+                font-size: 2.5em;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏗️ Dashboard 4 Timbangan</h1>
+        <p>Monitoring Realtime Multi Scale System</p>
+    </div>
+    
+    <!-- Summary Card -->
+    <div class="summary-card">
+        <h3 style="margin-bottom: 20px; color: #333;">📊 Ringkasan Sistem</h3>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-value" id="total-online">-</div>
+                <div class="summary-label">Timbangan Online</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value" id="total-weight">-</div>
+                <div class="summary-label">Total Berat (kg)</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value" id="avg-weight">-</div>
+                <div class="summary-label">Rata-rata (kg)</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value" id="last-update">-</div>
+                <div class="summary-label">Update Terakhir</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Timbangan Grid -->
+    <div class="timbangan-grid">
+        <!-- Timbangan 1 -->
+        <div class="timbangan-card">
+            <div class="timbangan-title">🏗️ Timbangan 1</div>
+            <div class="weight-display" id="weight-1">
+                <span class="loading"></span>
+            </div>
+            <div class="weight-unit" id="unit-1">Memuat...</div>
+            <div class="status-badge" id="status-1">Menghubungkan...</div>
+            <div class="timbangan-info">
+                <div>Port: 3001 | WS: 8081</div>
+                <div>Update: <span id="time-1">-</span></div>
+            </div>
+        </div>
+        
+        <!-- Timbangan 2 -->
+        <div class="timbangan-card">
+            <div class="timbangan-title">🏗️ Timbangan 2</div>
+            <div class="weight-display" id="weight-2">
+                <span class="loading"></span>
+            </div>
+            <div class="weight-unit" id="unit-2">Memuat...</div>
+            <div class="status-badge" id="status-2">Menghubungkan...</div>
+            <div class="timbangan-info">
+                <div>Port: 3002 | WS: 8082</div>
+                <div>Update: <span id="time-2">-</span></div>
+            </div>
+        </div>
+        
+        <!-- Timbangan 3 -->
+        <div class="timbangan-card">
+            <div class="timbangan-title">🏗️ Timbangan 3</div>
+            <div class="weight-display" id="weight-3">
+                <span class="loading"></span>
+            </div>
+            <div class="weight-unit" id="unit-3">Memuat...</div>
+            <div class="status-badge" id="status-3">Menghubungkan...</div>
+            <div class="timbangan-info">
+                <div>Port: 3003 | WS: 8083</div>
+                <div>Update: <span id="time-3">-</span></div>
+            </div>
+        </div>
+        
+        <!-- Timbangan 4 -->
+        <div class="timbangan-card">
+            <div class="timbangan-title">🏗️ Timbangan 4</div>
+            <div class="weight-display" id="weight-4">
+                <span class="loading"></span>
+            </div>
+            <div class="weight-unit" id="unit-4">Memuat...</div>
+            <div class="status-badge" id="status-4">Menghubungkan...</div>
+            <div class="timbangan-info">
+                <div>Port: 3004 | WS: 8084</div>
+                <div>Update: <span id="time-4">-</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>🔄 Auto refresh setiap 3 detik | Sistem Multi Timbangan</p>
+        <p>Powered by Node.js + Laravel + Hostinger</p>
+    </div>
+
+    <script>
+        const REFRESH_INTERVAL = 3000;
+        const timbanganData = {};
+        
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            return new Date(timestamp).toLocaleTimeString('id-ID');
+        }
+        
+        function updateTimbangan(id, data) {
+            try {
+                const weight = data.data || data;
+                const isFresh = data.is_fresh !== false;
+                
+                document.getElementById(`weight-${id}`).textContent = 
+                    parseFloat(weight.value || 0).toFixed(2);
+                document.getElementById(`unit-${id}`).textContent = weight.unit || 'kg';
+                document.getElementById(`time-${id}`).textContent = formatTime(weight.timestamp);
+                
+                const statusElement = document.getElementById(`status-${id}`);
+                if (weight.connected && isFresh) {
+                    statusElement.textContent = '🟢 Online';
+                    statusElement.className = 'status-badge status-online';
+                } else if (weight.connected && !isFresh) {
+                    statusElement.textContent = '🟡 Data Lama';
+                    statusElement.className = 'status-badge status-warning';
+                } else {
+                    statusElement.textContent = '🔴 Offline';
+                    statusElement.className = 'status-badge status-offline';
+                }
+                
+                timbanganData[id] = {
+                    value: parseFloat(weight.value || 0),
+                    connected: weight.connected && isFresh,
+                    timestamp: weight.timestamp
+                };
+                
+            } catch (error) {
+                console.error(`Error updating timbangan ${id}:`, error);
+                showError(id);
+            }
+        }
+        
+        function showError(id) {
+            document.getElementById(`weight-${id}`).textContent = 'Error';
+            document.getElementById(`unit-${id}`).textContent = 'Error';
+            document.getElementById(`status-${id}`).textContent = '❌ Error';
+            document.getElementById(`status-${id}`).className = 'status-badge status-offline';
+            
+            timbanganData[id] = {
+                value: 0,
+                connected: false,
+                timestamp: null
+            };
+        }
+        
+        function updateSummary() {
+            const onlineCount = Object.values(timbanganData).filter(t => t.connected).length;
+            const totalWeight = Object.values(timbanganData).reduce((sum, t) => sum + (t.value || 0), 0);
+            const avgWeight = onlineCount > 0 ? totalWeight / onlineCount : 0;
+            const lastUpdate = Math.max(...Object.values(timbanganData)
+                .map(t => t.timestamp ? new Date(t.timestamp).getTime() : 0));
+            
+            document.getElementById('total-online').textContent = `${onlineCount}/4`;
+            document.getElementById('total-weight').textContent = totalWeight.toFixed(2);
+            document.getElementById('avg-weight').textContent = avgWeight.toFixed(2);
+            document.getElementById('last-update').textContent = 
+                lastUpdate > 0 ? formatTime(new Date(lastUpdate)) : '-';
+        }
+        
+        async function loadTimbangan(id) {
+            try {
+                const response = await fetch(`http://localhost:${3000 + id}/api/weight`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateTimbangan(id, data);
+                } else {
+                    throw new Error(data.message || 'API error');
+                }
+                
+            } catch (error) {
+                console.error(`Error loading timbangan ${id}:`, error);
+                showError(id);
+            }
+        }
+        
+        async function loadAllData() {
+            const promises = [];
+            for (let i = 1; i <= 4; i++) {
+                promises.push(loadTimbangan(i));
+            }
+            
+            await Promise.all(promises);
+            updateSummary();
+        }
+        
+        // Auto refresh
+        setInterval(loadAllData, REFRESH_INTERVAL);
+        
+        // Load pertama kali
+        loadAllData();
+        
+        console.log('🏗️ Multi Timbangan Dashboard loaded');
+        console.log('📡 Monitoring 4 timbangan pada port 3001-3004');
+    </script>
+</body>
+</html>
